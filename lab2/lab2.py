@@ -101,7 +101,7 @@ if __name__ == "__main__":
     print(Y_train.head())
     print(Y_val.head())
 
-    """
+
     # List of categorical features to be one-hot encoded
     ###### Your codes start here.######
     # categorical_features = ['COLLEGE', 'REPORTED_SATISFACTION','REPORTED_USAGE_LEVEL','CONSIDERING_CHANGE_OF_PLAN','LEAVE']
@@ -151,5 +151,76 @@ if __name__ == "__main__":
 
     # Neural Network
 
-    """
+    # Convert pandas DataFrame to PyTorch tensor
+    X_train_tensor = torch.tensor(X_train_encoded.values, dtype=torch.float32)
+    Y_train_tensor = torch.tensor(Y_train.values, dtype=torch.float32).view(-1, 1)
+
+    X_val_tensor = torch.tensor(X_val_encoded.values, dtype=torch.float32)
+    Y_val_tensor = torch.tensor(Y_val.values, dtype=torch.float32).view(-1, 1)
+
+    X_test_tensor = torch.tensor(X_test_encoded.values, dtype=torch.float32)
+
+    # Define Neural Network architecture
+    class ChurnNN(nn.Module):
+        def __init__(self, input_dim):
+            super(ChurnNN, self).__init__()
+            self.net = nn.Sequential(
+                nn.Linear(input_dim, 16),
+                nn.ReLU(),
+                nn.Linear(16, 8),
+                nn.ReLU(),
+                nn.Linear(8, 1),
+                nn.Sigmoid()
+            )
+
+        def forward(self, x):
+            return self.net(x)
+
+    input_dim = X_train_tensor.shape[1]
+    model = ChurnNN(input_dim)
+
+    # Define loss function and optimizer
+    criterion = nn.BCELoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    # Train Neural Network
+    num_epochs = 100
+    batch_size = 32
+
+    for epoch in range(num_epochs):
+        permutation = torch.randperm(X_train_tensor.size()[0])
+
+        for i in range(0, X_train_tensor.size()[0], batch_size):
+            indices = permutation[i:i+batch_size]
+            batch_X, batch_Y = X_train_tensor[indices], Y_train_tensor[indices]
+
+            optimizer.zero_grad()
+            outputs = model(batch_X)
+            loss = criterion(outputs, batch_Y)
+            loss.backward()
+            optimizer.step()
+
+        if (epoch + 1) % 10 == 0:
+            with torch.no_grad():
+                val_outputs = model(X_val_tensor)
+                val_predictions = (val_outputs >= 0.5).float()
+                val_accuracy = (val_predictions.eq(Y_val_tensor).sum().item()) / len(Y_val_tensor)
+                print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, Val Accuracy: {val_accuracy:.4f}")
+
+    # Validation predictions
+    with torch.no_grad():
+        val_outputs = model(X_val_tensor)
+        val_predictions = (val_outputs >= 0.5).float().squeeze().numpy()
+
+    print(f"Neural network model validation accuracy: {np.sum(val_predictions == Y_val.values) / len(Y_val):.4f}")
+
+    # Test predictions
+    with torch.no_grad():
+        test_outputs = model(X_test_tensor)
+        test_predictions = (test_outputs >= 0.5).float().squeeze().numpy()
+
+    save_prediction_to_csv_file(test_predictions, "submission_nn.csv")
+
+    ###### Your codes end here.######
+
 
